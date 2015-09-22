@@ -162,6 +162,78 @@ class Schema(object):
             else:
                 raise ValueError('unknown complex field %s' % key)
 
+    def resolve(self, entity_spec, field_spec=None, auto_prefix=True, implicit_aliases=True, strict=False):
+
+        if field_spec is None: # We are resolving an entity.
+
+            m = re.match(r'^([!#$]?)([\w:-]+)$', entity_spec)
+            if not m:
+                raise ValueError('%r cannot be an entity' % entity_spec)
+            operation, entity_spec = m.groups()
+
+            if operation == '!':
+                return [entity_spec]
+            if operation == '#':
+                return list(self.entity_tags.get(entity_spec, ()))
+            if operation == '$':
+                try:
+                    return [self.entity_aliases[entity_spec]]
+                except KeyError:
+                    return []
+
+            if entity_spec in self.entities:
+                return [entity_spec]
+
+            if implicit_aliases and entity_spec in self.entity_aliases:
+                return [self.entity_aliases[entity_spec]]
+
+            if strict:
+                raise ValueError('%r is not an entity' % entity_spec)
+
+            return [entity_spec]
+
+        # When resolving a field, the entity must exist.
+        try:
+            entity = self.entities[entity_spec]
+        except KeyError:
+            raise ValueError('%r is not an entity' % entity_spec)
+
+        m = re.match(r'^([!#$]?)([\w:-]+)$', field_spec)
+        if not m:
+            raise ValueError('%r cannot be a field' % field_spec)
+        operation, field_spec = m.groups()
+
+        if operation == '!':
+            return [field_spec]
+        if operation == '#':
+            return list(entity.field_tags.get(field_spec, ()))
+        if operation == '$':
+            try:
+                return [entity.field_aliases[field_spec]]
+            except KeyError:
+                return []
+
+        if field_spec in entity.fields:
+            return [field_spec]
+
+        if auto_prefix:
+            prefixed = 'sg_' + field_spec
+            if prefixed in entity.fields:
+                return [prefixed]
+
+        if implicit_aliases and field_spec in entity.field_aliases:
+            return [entity.field_aliases[field_spec]]
+
+        if strict:
+            raise ValueError('%r is not a field of %s' % (field_spec, entity_spec))
+
+        return [field_spec]
+
+
+
+
+
+
 
 
 if __name__ == '__main__':
