@@ -1,11 +1,7 @@
-import ast
+import copy
 import json
 import os
 import re
-import copy
-
-import requests
-import yaml
 
 from .entity import Entity
 from .field import Field
@@ -13,6 +9,37 @@ from .utils import cached_property, merge_update
 
 
 class Schema(object):
+
+    _cache_instances = {}
+
+    @classmethod
+    def from_cache(cls, base_url):
+
+        # If it is a Shotgun instance, grab the url.
+        if not isinstance(base_url, basestring):
+            base_url = base_url.base_url
+
+        # Try to return a single instance.
+        try:
+            return cls._cache_instances[base_url]
+        except KeyError:
+            pass
+
+        import pkg_resources
+        for ep in pkg_resources.iter_entry_points('sgschema_cache'):
+            func = ep.load()
+            cache = func(base_url)
+            if cache is not None:
+                break
+        else:
+            raise ValueError('cannot find cache for %s' % base_url)
+
+        schema = cls()
+        schema.load(cache)
+
+        # Cache it so we only load it once.
+        cls._cache_instances[base_url] = schema
+        return schema
 
     def __init__(self):
 
@@ -49,6 +76,9 @@ class Schema(object):
 
     def read(self, sg):
         
+        # Most of the time we don't need this, so don't bother importing.
+        from requests import Session
+
         # SG.schema_field_read() is the same data per-entity as SG.schema_read().
         # SG.schema_entity_read() contains global name and visibility of each
         # entity type, but the visibility is likely to just be True for everything.
@@ -58,7 +88,7 @@ class Schema(object):
         # We also want the private schema which drives the website.
         # See <http://mikeboers.com/blog/2015/07/21/a-complete-shotgun-schema>.
 
-        session = requests.Session()
+        session = Session()
         session.cookies['_session_id'] = sg.get_session_token()
         
         js = session.get(sg.base_url + '/page/schema').text
@@ -92,7 +122,7 @@ class Schema(object):
                     'raw_private': self._raw_private,
                 }, indent=4, sort_keys=True))
         else:
-            data = {entity.name: entity._dump() for entity in self.entities.itervalues()}
+            data = {'entities': {entity.name: entity._dump() for entity in self.entities.itervalues()}}
             with open(path, 'w') as fh:
                 fh.write(json.dumps(data, indent=4, sort_keys=True))
 
@@ -100,7 +130,7 @@ class Schema(object):
         for file_name in os.listdir(dir_path):
             if file_name.startswith('.') or not file_name.endswith('.json'):
                 continue
-            self.load(self, os.path.join(dir_path, file_name))
+            self.load(os.path.join(dir_path, file_name))
 
     def load_raw(self, path):
 
@@ -137,7 +167,6 @@ class Schema(object):
                 raise ValueError('mix of direct and indirect entity specifications')
             raw_schema = {'entities': raw_schema}
 
-        # Load the two direct fields.
         for type_name, value in raw_schema.pop('entities', {}).iteritems():
             self._get_or_make_entity(type_name)._load(value)
 
@@ -146,40 +175,23 @@ class Schema(object):
 
         if raw_schema:
             raise ValueError('unknown keys: %s' % ', '.join(sorted(raw_schema)))
-        return
-
-        # Load any indirect fields.
-        for key, values in raw_schema.iteritems():
-            if key.startswith('entity_'):
-                entity_attr = key[7:]
-                for type_name, value in values.iteritems():
-                    self.entities[type_name]._load({entity_attr: value})
-            elif key.startswith('field_'):
-                field_attr = key[6:]
-                for type_name, fields in values.iteritems():
-                    for field_name, value in fields.iteritems():
-                        self.entities[type_name].fields[field_name]._load({field_attr: value})
-            else:
-                raise ValueError('unknown complex field %s' % key)
 
     def resolve(self, entity_spec, field_spec=None, auto_prefix=True, implicit_aliases=True, strict=False):
 
         if field_spec is None: # We are resolving an entity.
 
-            m = re.match(r'^([!#$]?)([\w:-]+)$', entity_spec)
-            if not m:
-                raise ValueError('%r cannot be an entity' % entity_spec)
-            operation, entity_spec = m.groups()
-
-            if operation == '!':
-                return [entity_spec]
-            if operation == '#':
-                return list(self.entity_tags.get(entity_spec, ()))
-            if operation == '$':
+            op = entity_spec[0]
+            if op == '!':
+                return [entity_spec[1:]]
+            if op == '#':
+                return list(self.entity_tags.get(entity_spec[1:], ()))
+            if op == '$':
                 try:
-                    return [self.entity_aliases[entity_spec]]
+                    return [self.entity_aliases[entity_spec[1:]]]
                 except KeyError:
                     return []
+            if not op.isalnum():
+                raise ValueError('unknown entity operation for %r' % entity_spec)
 
             if entity_spec in self.entities:
                 return [entity_spec]
@@ -198,20 +210,18 @@ class Schema(object):
         except KeyError:
             raise ValueError('%r is not an entity' % entity_spec)
 
-        m = re.match(r'^([!#$]?)([\w:-]+)$', field_spec)
-        if not m:
-            raise ValueError('%r cannot be a field' % field_spec)
-        operation, field_spec = m.groups()
-
-        if operation == '!':
-            return [field_spec]
-        if operation == '#':
-            return list(entity.field_tags.get(field_spec, ()))
-        if operation == '$':
+        op = field_spec[0]
+        if op == '!':
+            return [field_spec[1:]]
+        if op == '#':
+            return list(entity.field_tags.get(field_spec[1:], ()))
+        if op == '$':
             try:
-                return [entity.field_aliases[field_spec]]
+                return [entity.field_aliases[field_spec[1:]]]
             except KeyError:
                 return []
+        if not op.isalnum():
+            raise ValueError('unknown field operation for %s %r' % (entity_spec, field_spec))
 
         if field_spec in entity.fields:
             return [field_spec]
@@ -251,18 +261,11 @@ if __name__ == '__main__':
     else:
         schema.load_raw('sandbox/raw.json')
 
-    schema.entities['PublishEvent'].aliases.add('Publish')
-    schema.entities['PublishEvent'].aliases.add('sgpublish:Publish')
-    schema.entities['PublishEvent'].fields['sg_type'].aliases.add('type')
-    schema.entities['PublishEvent'].fields['sg_type'].tags.add('sgcache:include')
-
     schema.dump('sandbox/reduced.json')
+    schema.dump('/tmp/reduced.json')
 
     t = time.time()
     schema = Schema()
-    schema.load('sandbox/reduced.json')
+    schema.load('/tmp/reduced.json')
     print 1000 * (time.time() - t)
 
-    print schema.entity_aliases['Publish']
-    print schema.entities['PublishEvent'].field_aliases['type']
-    print schema.entities['PublishEvent'].field_tags['identifier_column']
