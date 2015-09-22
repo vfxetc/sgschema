@@ -2,13 +2,14 @@ import ast
 import json
 import os
 import re
+import copy
 
 import requests
 import yaml
 
 from .entity import Entity
 from .field import Field
-from .utils import cached_property
+from .utils import cached_property, merge_update
 
 
 class Schema(object):
@@ -82,17 +83,6 @@ class Schema(object):
                 field = entity._get_or_make_field(field_name)
                 field._reduce_raw(self, raw_field)
 
-
-    def _dump_prep(self, value):
-        if isinstance(value, unicode):
-            return value.encode("utf8")
-        elif isinstance(value, dict):
-            return {self._dump_prep(k): self._dump_prep(v) for k, v in value.iteritems()}
-        elif isinstance(value, (tuple, list)):
-            return [self._dump_prep(x) for x in value]
-        else:
-            return value
-
     def dump(self, path, raw=False):
         if raw:
             with open(path, 'w') as fh:
@@ -130,26 +120,36 @@ class Schema(object):
 
         self._reduce_raw()
 
-    def load(self, path):
+    def load(self, input_):
 
-        encoded = open(path).read()
-        raw = json.loads(encoded)
-        #raw = ast.literal_eval(encoded)
+        if isinstance(input_, basestring):
+            encoded = open(input_).read()
+            raw_schema = json.loads(encoded)
+        elif isinstance(input_, dict):
+            raw_schema = copy.deepcopy(input_)
+        else:
+            raise TypeError('require str path or dict schema')
 
         # If it is a dictionary of entity types, pretend it is in an "entities" key.
-        title_cased = sum(int(k[:1].isupper()) for k in raw)
+        title_cased = sum(int(k[:1].isupper()) for k in raw_schema)
         if title_cased:
-            if len(raw) != title_cased:
+            if len(raw_schema) != title_cased:
                 raise ValueError('mix of direct and indirect entity specifications')
-            raw = {'entities': raw}
+            raw_schema = {'entities': raw_schema}
 
         # Load the two direct fields.
-        for type_name, value in raw.pop('entities', {}).iteritems():
+        for type_name, value in raw_schema.pop('entities', {}).iteritems():
             self._get_or_make_entity(type_name)._load(value)
-        self._entity_aliases.update(raw.pop('entity_aliases', {}))
+
+        merge_update(self._entity_aliases, raw_schema.pop('entity_aliases', {}))
+        merge_update(self._entity_tags   , raw_schema.pop('entity_tags',    {}))
+
+        if raw_schema:
+            raise ValueError('unknown keys: %s' % ', '.join(sorted(raw_schema)))
+        return
 
         # Load any indirect fields.
-        for key, values in raw.iteritems():
+        for key, values in raw_schema.iteritems():
             if key.startswith('entity_'):
                 entity_attr = key[7:]
                 for type_name, value in values.iteritems():
@@ -194,4 +194,3 @@ if __name__ == '__main__':
     print schema.entity_aliases['Publish']
     print schema.entities['PublishEvent'].field_aliases['type']
     print schema.entities['PublishEvent'].field_tags['identifier_column']
-    

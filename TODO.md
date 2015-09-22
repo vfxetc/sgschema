@@ -1,8 +1,7 @@
 
-- test the loading and resolution of aliases and tags
+- Schema.for_url(base_url) -> static class
 
-- caches of the raw schema; both public ones and the private one
-- cache of the reduced schema
+
 
 - role assignments for columns, so that our tools that
   access roles (via a special syntax) instead of actual column names
