@@ -1,3 +1,4 @@
+import ast
 import json
 import os
 import re
@@ -5,6 +6,9 @@ import re
 import requests
 import yaml
 
+from .entity import Entity
+from .field import Field
+from .utils import cached_property
 
 
 class Schema(object):
@@ -16,11 +20,31 @@ class Schema(object):
         self._raw_private = None
 
         self.entities = {}
-        self.fields = {}
-        self.entity_aliases = {}
-        self.field_aliases = {}
-        self.field_tags = {}
-        
+
+        self._entity_aliases = {}
+        self._entity_tags = {}
+
+    @cached_property
+    def entity_aliases(self):
+        entity_aliases = dict(self._entity_aliases)
+        for entity in self.entities.itervalues():
+            for alias in entity._aliases:
+                entity_aliases[alias] = entity.name
+        return entity_aliases
+
+    @cached_property
+    def entity_tags(self):
+        entity_tags = {k: set(v) for k, v in self._entity_tags.iteritems()}
+        for entity in self.entities.itervalues():
+            for tag in entity._tags:
+                entity_tags.setdefault(tag, set()).add(entity.name)
+        return entity_tags
+
+    def _get_or_make_entity(self, name):
+        try:
+            return self.entities[name]
+        except KeyError:
+            return self.entities.setdefault(name, Entity(self, name))
 
     def read(self, sg):
         
@@ -47,34 +71,17 @@ class Schema(object):
         self._reduce_raw()
 
     def _reduce_raw(self):
-
+        
         for type_name, raw_entity in self._raw_entities.iteritems():
-
-            self.entities[type_name] = entity = {}
-            for name in ('name', ):
-                entity[name] = raw_entity[name]['value']
+            entity = self._get_or_make_entity(type_name)
+            entity._reduce_raw(self, raw_entity)
 
         for type_name, raw_fields in self._raw_fields.iteritems():
-
-            raw_fields = self._raw_fields[type_name]
-            self.fields[type_name] = fields = {}
-
+            entity = self._get_or_make_entity(type_name)
             for field_name, raw_field in raw_fields.iteritems():
+                field = entity._get_or_make_field(field_name)
+                field._reduce_raw(self, raw_field)
 
-                fields[field_name] = field = {}
-
-                for key in 'name', 'data_type':
-                    field[key] = raw_field[key]['value']
-
-                raw_private = self._raw_private['entity_fields'][type_name].get(field_name, {})
-
-                if raw_private.get('identifier_column'):
-                    field['identifier_column'] = True
-                    self.identifier_columns[type_name] = field_name
-
-                if field['data_type'] in ('entity', 'multi_entity'):
-                    types_ = raw_private['allowed_entity_types'] or []
-                    field['allowed_entity_types'] = types_[:]
 
     def _dump_prep(self, value):
         if isinstance(value, unicode):
@@ -86,36 +93,74 @@ class Schema(object):
         else:
             return value
 
-    def dump(self, dir_path):
-        for name in 'fields', 'entities', 'private':
-            value = getattr(self, '_raw_' + name)
-            if value:
-                with open(os.path.join(dir_path, 'raw_%s.json' % name), 'w') as fh:
-                   fh.write(json.dumps(value, indent=4, sort_keys=True))
-        for name in ('fields',):
-            value = getattr(self, name)
-            if value:
-                with open(os.path.join(dir_path, name + '.json'), 'w') as fh:
-                    fh.write(json.dumps(self._dump_prep(value), indent=4, sort_keys=True))
+    def dump(self, path, raw=False):
+        if raw:
+            with open(path, 'w') as fh:
+                fh.write(json.dumps({
+                    'raw_fields': self._raw_fields,
+                    'raw_entities': self._raw_entities,
+                    'raw_private': self._raw_private,
+                }, indent=4, sort_keys=True))
+        else:
+            data = {entity.name: entity._dump() for entity in self.entities.itervalues()}
+            with open(path, 'w') as fh:
+                fh.write(json.dumps(data, indent=4, sort_keys=True))
 
-    def load(self, dir_path, raw=False):
-        
-        if not raw:
-            for name in ('fields', 'entities'):
-                path = os.path.join(dir_path, name + '.json')
-                if os.path.exists(path):
-                    with open(path) as fh:
-                        setattr(self, name, json.load(fh))
-            if self.fields:
-                self._build_associations()
+    def load_directory(self, dir_path):
+        for file_name in os.listdir(dir_path):
+            if file_name.startswith('.') or not file_name.endswith('.json'):
+                continue
+            self.load(self, os.path.join(dir_path, file_name))
 
-        if raw or not self.fields:
-            for name in 'fields', 'entities', 'private':
-                path = os.path.join(dir_path, 'raw_%s.json' % name)
-                if os.path.exists(path):
-                    with open(path) as fh:
-                        setattr(self, '_raw_' + name, json.load(fh))
-            self._reduce_raw()
+    def load_raw(self, path):
+
+        raw = json.loads(open(path).read())
+        keys = 'raw_entities', 'raw_fields', 'raw_private'
+
+        # Make sure we have the right keys, and only the right keys.
+        missing = [k for k in keys if k not in raw]
+        if missing:
+            raise ValueError('missing keys in raw schema: %s' % ', '.join(missing))
+        if len(keys) != 3:
+            extra = [k for k in raw if k not in keys]
+            raise ValueError('extra keys in raw schema: %s' % ', '.join(extra))
+
+        for k in keys:
+            setattr(self, '_' + k, raw[k])
+
+        self._reduce_raw()
+
+    def load(self, path):
+
+        encoded = open(path).read()
+        raw = json.loads(encoded)
+        #raw = ast.literal_eval(encoded)
+
+        # If it is a dictionary of entity types, pretend it is in an "entities" key.
+        title_cased = sum(int(k[:1].isupper()) for k in raw)
+        if title_cased:
+            if len(raw) != title_cased:
+                raise ValueError('mix of direct and indirect entity specifications')
+            raw = {'entities': raw}
+
+        # Load the two direct fields.
+        for type_name, value in raw.pop('entities', {}).iteritems():
+            self._get_or_make_entity(type_name)._load(value)
+        self._entity_aliases.update(raw.pop('entity_aliases', {}))
+
+        # Load any indirect fields.
+        for key, values in raw.iteritems():
+            if key.startswith('entity_'):
+                entity_attr = key[7:]
+                for type_name, value in values.iteritems():
+                    self.entities[type_name]._load({entity_attr: value})
+            elif key.startswith('field_'):
+                field_attr = key[6:]
+                for type_name, fields in values.iteritems():
+                    for field_name, value in fields.iteritems():
+                        self.entities[type_name].fields[field_name]._load({field_attr: value})
+            else:
+                raise ValueError('unknown complex field %s' % key)
 
 
 
@@ -130,12 +175,23 @@ if __name__ == '__main__':
 
     if False:
         schema.read(sg)
+        schema.dump('sandbox/raw.json', raw=True)
     else:
-        schema.load('sandbox', raw=True)
+        schema.load_raw('sandbox/raw.json')
 
-    schema.dump('sandbox')
+    schema.entities['PublishEvent'].aliases.add('Publish')
+    schema.entities['PublishEvent'].aliases.add('sgpublish:Publish')
+    schema.entities['PublishEvent'].fields['sg_type'].aliases.add('type')
+    schema.entities['PublishEvent'].fields['sg_type'].tags.add('sgcache:include')
+
+    schema.dump('sandbox/reduced.json')
 
     t = time.time()
-    schema.load('sandbox')
+    schema = Schema()
+    schema.load('sandbox/reduced.json')
     print 1000 * (time.time() - t)
 
+    print schema.entity_aliases['Publish']
+    print schema.entities['PublishEvent'].field_aliases['type']
+    print schema.entities['PublishEvent'].field_tags['identifier_column']
+    

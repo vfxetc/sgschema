@@ -1,41 +1,5 @@
 
-
-- every json file has the same structure, there top-level keys signify what
-  type of data it is, e.g. all raw data would be under a "raw_schema_read" field.
-  This allows us to merge a directory of cached data, and so that various
-  tools can have json files just about them on the SGSCHEMA_PATH, e.g.:
-
-    sgevents.json:
-
-    {
-      'entity_aliases': {
-        'sgevents:EventReceipt': 'CustomNonProjectEntity01'
-      },
-      'field_aliases': {
-        'CustomNonProjectEntity01': {
-          'type': 'sg_type'
-        }
-      },
-      'field_tags': {
-        'PublishEvent': {
-          'sg_type': ['sgcache:include']
-        }
-      }
-    }
-
-    {
-      'PublishEvent': {
-        'aliases': ['sgpublish:Publish', 'Publish'],
-        'fields': {
-          'sg_type': {
-            'aliases': ['sgpublish:type', 'type'],
-            'data_type': 'text',
-            'name': 'Type',
-            'tags': ['sgcache:include'],
-        }
-      }
-    }
-  }
+- test the loading and resolution of aliases and tags
 
 - caches of the raw schema; both public ones and the private one
 - cache of the reduced schema
@@ -60,7 +24,7 @@
   e.g.: EntityType.[sgcache.include==true]
         PublishEvent.[sgpublish.is_core]
 
-  Tags: PublishEvent.$sgpublish:core -> {sg_code,sg_type,...}
+  Tags: PublishEvent.#sgsession:core -> {sg_code,sg_type,...}
 
 - Automatic sg_ prefix detection:
   Publish.type -> PublishEvent.sg_type
@@ -72,11 +36,36 @@
   This is more in SGSession (or other consumers)
 
 
-- Are tags/alises forward or backward declared?
-  
-  schema.PublishEvent.aliases = ['Publish']
-  vs
-  schema.entity_aliases['Publish'] = 'PublishEvent'
+- Public API:
 
-  schema.PublishEvent.sg_type.aliases = ['type']
-  schema.field_aliases['PublishEvent']['type'] = 'sg_type'
+    schema.resolve_entity('$Publish') -> ['PublishEvent']
+    schema.resolve_field('PublishEvent', 'type') -> ['sg_type']
+
+- Create a standard-ish set of tags and aliases:
+    $parent pointing to typical parent
+
+- Include backrefs in reduced schema? Known as "inverse_association" in private
+  schema.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
