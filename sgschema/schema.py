@@ -1,4 +1,5 @@
 import copy
+import itertools
 import json
 import os
 import re
@@ -176,39 +177,45 @@ class Schema(object):
         if raw_schema:
             raise ValueError('unknown keys: %s' % ', '.join(sorted(raw_schema)))
 
-    def resolve(self, entity_spec, field_spec=None, auto_prefix=True, implicit_aliases=True, strict=False):
+    def resolve_entity(self, entity_spec, implicit_aliases=True, strict=False):
 
-        if field_spec is None: # We are resolving an entity.
+        op = entity_spec[0]
+        if op == '!':
+            return [entity_spec[1:]]
+        if op == '#':
+            return list(self.entity_tags.get(entity_spec[1:], ()))
+        if op == '$':
+            try:
+                return [self.entity_aliases[entity_spec[1:]]]
+            except KeyError:
+                return []
+        if not op.isalnum():
+            raise ValueError('unknown entity operation for %r' % entity_spec)
 
-            op = entity_spec[0]
-            if op == '!':
-                return [entity_spec[1:]]
-            if op == '#':
-                return list(self.entity_tags.get(entity_spec[1:], ()))
-            if op == '$':
-                try:
-                    return [self.entity_aliases[entity_spec[1:]]]
-                except KeyError:
-                    return []
-            if not op.isalnum():
-                raise ValueError('unknown entity operation for %r' % entity_spec)
-
-            if entity_spec in self.entities:
-                return [entity_spec]
-
-            if implicit_aliases and entity_spec in self.entity_aliases:
-                return [self.entity_aliases[entity_spec]]
-
-            if strict:
-                raise ValueError('%r is not an entity' % entity_spec)
-
+        if entity_spec in self.entities:
             return [entity_spec]
 
-        # When resolving a field, the entity must exist.
+        if implicit_aliases and entity_spec in self.entity_aliases:
+            return [self.entity_aliases[entity_spec]]
+
+        if strict:
+            raise ValueError('%r is not an entity type' % entity_spec)
+
+        return [entity_spec]
+
+    def resolve_one_entity(self, entity_spec, **kwargs):
+        res = self.resolve_entity(entity_spec, **kwargs)
+        if len(res) == 1:
+            return res[0]
+        else:
+            raise ValueError('%r returned %s entity types' % (entity_spec, len(res)))
+
+    def _resolve_field(self, entity_spec, field_spec, auto_prefix=True, implicit_aliases=True, strict=False):
+
         try:
             entity = self.entities[entity_spec]
         except KeyError:
-            raise ValueError('%r is not an entity' % entity_spec)
+            raise ValueError('%r is not an entity type' % entity_spec)
 
         op = field_spec[0]
         if op == '!':
@@ -238,6 +245,39 @@ class Schema(object):
             raise ValueError('%r is not a field of %s' % (field_spec, entity_spec))
 
         return [field_spec]
+
+    def resolve_field(self, entity_type, field_spec=None, auto_prefix=True, implicit_aliases=True, strict=False):
+
+        spec_parts = field_spec.split('.')
+
+        # Shortcut if there isn't anything fancy going on.
+        if len(spec_parts) == 1:
+            return self._resolve_field(entity_type, field_spec, auto_prefix, implicit_aliases, strict)
+
+        # Crate list of [entity_type, field_spec] pairs.
+        spec_pairs = [[spec_parts[i-1] if i else None, spec_parts[i]] for i in xrange(0, len(spec_parts), 2)]
+        spec_pairs[0][0] = entity_type
+
+        # Resolve each pair.
+        resolved_pair_sets = []
+        for i, (entity_spec, field_spec), in enumerate(spec_pairs):
+            resolved_pairs = []
+            resolved_pair_sets.append(resolved_pairs)
+            # Here entity types need not already exist; resolve them.
+            entity_types = self.resolve_entity(entity_spec, implicit_aliases, strict)
+            for entity_type in entity_types:
+                for field_name in self._resolve_field(entity_type, field_spec, auto_prefix, implicit_aliases, strict):
+                    resolved_pairs.append((entity_type, field_name))
+
+        # Return the product of all resolved fields.
+        resolved_fields = []
+        for pairs in itertools.product(*resolved_pair_sets):
+            field = '.'.join((entity_type + '.' if i else '') + field_name for i, (entity_type, field_name) in enumerate(pairs))
+            resolved_fields.append(field)
+        return resolved_fields
+
+
+
 
 
 

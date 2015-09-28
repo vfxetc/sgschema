@@ -22,26 +22,27 @@ class TestResolveEntities(TestCase):
         })
 
     def test_explicit(self):
-        self.assertEqual(self.s.resolve('!Entity'), ['Entity'])
-        self.assertEqual(self.s.resolve('$A'), ['Entity'])
-        self.assertEqual(self.s.resolve('$B'), ['Entity'])
-        self.assertEqual(self.s.resolve('#X'), ['Entity'])
-        self.assertEqual(self.s.resolve('#Y'), ['Entity'])
+        self.assertEqual(self.s.resolve_entity('!Entity'), ['Entity'])
+        self.assertEqual(self.s.resolve_entity('$A'), ['Entity'])
+        self.assertEqual(self.s.resolve_entity('$B'), ['Entity'])
+        self.assertEqual(self.s.resolve_entity('#X'), ['Entity'])
+        self.assertEqual(self.s.resolve_entity('#Y'), ['Entity'])
 
     def test_namespace(self):
-        self.assertEqual(self.s.resolve('$with:Namespace'), ['Entity'])
+        self.assertEqual(self.s.resolve_entity('$with:Namespace'), ['Entity'])
 
     def test_implicit(self):
-        self.assertEqual(self.s.resolve('Entity'), ['Entity'])
-        self.assertEqual(self.s.resolve('A'), ['Entity'])
-        self.assertEqual(self.s.resolve('B'), ['Entity'])
+        self.assertEqual(self.s.resolve_entity('Entity'), ['Entity'])
+        self.assertEqual(self.s.resolve_entity('A'), ['Entity'])
+        self.assertEqual(self.s.resolve_entity('B'), ['Entity'])
 
     def test_missing(self):
-        self.assertEqual(self.s.resolve('#Missing'), [])
-        self.assertEqual(self.s.resolve('$Missing'), [])
-        self.assertEqual(self.s.resolve('!Missing'), ['Missing'])
-        self.assertEqual(self.s.resolve('Missing'), ['Missing'])
-        self.assertRaises(ValueError, self.s.resolve, 'Missing', strict=True)
+        self.assertEqual(self.s.resolve_entity('#Missing'), [])
+        self.assertEqual(self.s.resolve_entity('$Missing'), [])
+        self.assertEqual(self.s.resolve_entity('!Missing'), ['Missing'])
+        self.assertEqual(self.s.resolve_entity('Missing'), ['Missing'])
+        self.assertRaises(ValueError, self.s.resolve_entity, 'Missing', strict=True)
+
 
 class TestResolveFields(TestCase):
 
@@ -72,37 +73,90 @@ class TestResolveFields(TestCase):
         })
 
     def test_explicit(self):
-        self.assertEqual(self.s.resolve('Entity', '!attr'), ['attr'])
-        self.assertEqual(self.s.resolve('Entity', '$a'), ['attr'])
-        self.assertEqual(self.s.resolve('Entity', '$b'), ['attr'])
-        self.assertEqual(self.s.resolve('Entity', '#x'), ['attr'])
-        self.assertEqual(self.s.resolve('Entity', '#y'), ['attr'])
+        self.assertEqual(self.s.resolve_field('Entity', '!attr'), ['attr'])
+        self.assertEqual(self.s.resolve_field('Entity', '$a'), ['attr'])
+        self.assertEqual(self.s.resolve_field('Entity', '$b'), ['attr'])
+        self.assertEqual(self.s.resolve_field('Entity', '#x'), ['attr'])
+        self.assertEqual(self.s.resolve_field('Entity', '#y'), ['attr'])
 
     def test_namespace(self):
-        self.assertEqual(self.s.resolve('Entity', '$with:namespace'), ['attr'])
-        self.assertEqual(self.s.resolve('Entity', 'with:namespace'), ['attr'])
+        self.assertEqual(self.s.resolve_field('Entity', '$with:namespace'), ['attr'])
+        self.assertEqual(self.s.resolve_field('Entity', 'with:namespace'), ['attr'])
 
     def test_implicit(self):
-        self.assertEqual(self.s.resolve('Entity', 'attr'), ['attr'])
-        self.assertEqual(self.s.resolve('Entity', 'a'), ['attr'])
-        self.assertEqual(self.s.resolve('Entity', 'b'), ['attr'])
+        self.assertEqual(self.s.resolve_field('Entity', 'attr'), ['attr'])
+        self.assertEqual(self.s.resolve_field('Entity', 'a'), ['attr'])
+        self.assertEqual(self.s.resolve_field('Entity', 'b'), ['attr'])
 
     def test_prefix(self):
-        self.assertEqual(self.s.resolve('Entity', 'sg_type'), ['sg_type'])
-        self.assertEqual(self.s.resolve('Entity', 'type'), ['sg_type'])
-        self.assertEqual(self.s.resolve('Entity', '!type'), ['type'])
+        self.assertEqual(self.s.resolve_field('Entity', 'sg_type'), ['sg_type'])
+        self.assertEqual(self.s.resolve_field('Entity', 'type'), ['sg_type'])
+        self.assertEqual(self.s.resolve_field('Entity', '!type'), ['type'])
 
-        self.assertEqual(self.s.resolve('Entity', 'sg_name'), ['sg_name'])
-        self.assertEqual(self.s.resolve('Entity', 'name'), ['name']) # different!
-        self.assertEqual(self.s.resolve('Entity', '!name'), ['name'])
+        self.assertEqual(self.s.resolve_field('Entity', 'sg_name'), ['sg_name'])
+        self.assertEqual(self.s.resolve_field('Entity', 'name'), ['name']) # different!
+        self.assertEqual(self.s.resolve_field('Entity', '!name'), ['name'])
 
     def test_missing_entity(self):
-        self.assertRaises(ValueError, self.s.resolve, 'Missing', 'field_name')
+        self.assertRaises(ValueError, self.s.resolve_field, 'Missing', 'field_name')
 
     def test_missing(self):
-        self.assertEqual(self.s.resolve('Entity', '$missing'), [])
-        self.assertEqual(self.s.resolve('Entity', '#missing'), [])
-        self.assertEqual(self.s.resolve('Entity', '!missing'), ['missing'])
-        self.assertEqual(self.s.resolve('Entity', 'missing'), ['missing'])
-        self.assertRaises(ValueError, self.s.resolve, 'Entity', 'missing', strict=True)
+        self.assertEqual(self.s.resolve_field('Entity', '$missing'), [])
+        self.assertEqual(self.s.resolve_field('Entity', '#missing'), [])
+        self.assertEqual(self.s.resolve_field('Entity', '!missing'), ['missing'])
+        self.assertEqual(self.s.resolve_field('Entity', 'missing'), ['missing'])
+        self.assertRaises(ValueError, self.s.resolve_field, 'Entity', 'missing', strict=True)
+
+
+
+class TestResolveDeepFields(TestCase):
+
+    def setUp(self):
+        self.s = s = load_schema()
+        self.s.load({
+            'Task': {
+                'field_aliases': {
+                    'status': 'sg_status_list',
+                    'parent': 'entity',
+                },
+                'field_tags': {
+                    'core': ['content', 'step', 'sg_status_list'],
+                }
+            },
+            'Shot': {
+                'field_aliases': {
+                    'status': 'sg_status_list',
+                },
+                'field_tags': {
+                    'core': ['code', 'description', 'sg_sequence'],
+                }
+            },
+
+            'Asset': {
+                'field_aliases': {
+                    'status': 'sg_status_list',
+                },
+                'field_tags': {
+                    'core': ['code', 'asset_type'],
+                }
+            },
+        })
+
+    def test_sanity(self):
+        self.assertEqual(self.s.resolve_field('Task', 'sg_status_list'), ['sg_status_list'])
+        self.assertEqual(self.s.resolve_field('Task', 'status_list'), ['sg_status_list'])
+        self.assertEqual(self.s.resolve_field('Task', '$status'), ['sg_status_list'])
+
+    def test_passthrough(self):
+        self.assertEqual(self.s.resolve_field('Task', 'entity.Shot.sg_status_list'), ['entity.Shot.sg_status_list'])
+
+    def test_explicit_aliases(self):
+        self.assertEqual(self.s.resolve_field('Task', '$parent.Shot.$status'), ['entity.Shot.sg_status_list'])
+        self.assertEqual(self.s.resolve_field('Task', '$parent.Shot.status_list'), ['entity.Shot.sg_status_list'])
+        self.assertEqual(self.s.resolve_field('Task', 'entity.Shot.$status'), ['entity.Shot.sg_status_list'])
+
+    def test_explicit_tags(self):
+        self.assertEqual(self.s.resolve_field('Task', '$parent.Shot.#core'), ['entity.Shot.sg_sequence', 'entity.Shot.code', 'entity.Shot.description'])
+
+
 
