@@ -192,6 +192,7 @@ class Schema(object):
         if not op.isalnum():
             raise ValueError('unknown entity operation for %r' % entity_spec)
 
+        # Actual entity names have preference over implicit aliases.
         if entity_spec in self.entities:
             return [entity_spec]
 
@@ -217,6 +218,12 @@ class Schema(object):
         except KeyError:
             raise ValueError('%r is not an entity type' % entity_spec)
 
+        # These two are special, and should always be returned as-is.
+        # We only need to do "type" in this way, since "id" usually exists
+        # as a numeric field, but it feels right.
+        if field_spec in ('id', 'type'):
+            return [field_spec]
+
         op = field_spec[0]
         if op == '!':
             return [field_spec[1:]]
@@ -230,6 +237,8 @@ class Schema(object):
         if not op.isalnum():
             raise ValueError('unknown field operation for %s %r' % (entity_spec, field_spec))
 
+        # Actual field names have preference over automatic prefixes or
+        # implicit aliases.
         if field_spec in entity.fields:
             return [field_spec]
 

@@ -11,13 +11,15 @@ class TestResolveEntities(TestCase):
                 'Entity': {
                     'aliases': ['A', 'with:Namespace'],
                     'tags': ['X'],
-                }
+                },
+                'Another': {}
             },
             'entity_aliases': {
                 'B': 'Entity',
             },
             'entity_tags': {
                 'Y': ['Entity'],
+                'Multiple': ['Entity', 'Another'],
             }
         })
 
@@ -43,6 +45,14 @@ class TestResolveEntities(TestCase):
         self.assertEqual(self.s.resolve_entity('Missing'), ['Missing'])
         self.assertRaises(ValueError, self.s.resolve_entity, 'Missing', strict=True)
 
+    def test_one(self):
+        self.assertEqual(self.s.resolve_one_entity('Entity'), 'Entity')
+        self.assertEqual(self.s.resolve_one_entity('!Entity'), 'Entity')
+        self.assertEqual(self.s.resolve_one_entity('$A'), 'Entity')
+        self.assertEqual(self.s.resolve_one_entity('#X'), 'Entity')
+        self.assertRaises(ValueError, self.s.resolve_one_entity, '#Missing')
+        self.assertRaises(ValueError, self.s.resolve_one_entity, '#Multiple')
+
 
 class TestResolveFields(TestCase):
 
@@ -58,6 +68,7 @@ class TestResolveFields(TestCase):
                             'tags': ['x'],
 
                         },
+                        'sg_version': {},
                         'sg_type': {},
                         'name': {},
                         'sg_name': {},
@@ -89,8 +100,12 @@ class TestResolveFields(TestCase):
         self.assertEqual(self.s.resolve_field('Entity', 'b'), ['attr'])
 
     def test_prefix(self):
+        self.assertEqual(self.s.resolve_field('Entity', 'sg_version'), ['sg_version'])
+        self.assertEqual(self.s.resolve_field('Entity', 'version'), ['sg_version']) # Auto-prefix.
+        self.assertEqual(self.s.resolve_field('Entity', '!version'), ['version']) # Doesn't exist.
+
         self.assertEqual(self.s.resolve_field('Entity', 'sg_type'), ['sg_type'])
-        self.assertEqual(self.s.resolve_field('Entity', 'type'), ['sg_type'])
+        self.assertEqual(self.s.resolve_field('Entity', 'type'), ['type']) # This overlaps the implicit "type"!
         self.assertEqual(self.s.resolve_field('Entity', '!type'), ['type'])
 
         self.assertEqual(self.s.resolve_field('Entity', 'sg_name'), ['sg_name'])
