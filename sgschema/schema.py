@@ -255,7 +255,7 @@ class Schema(object):
 
         return [field_spec]
 
-    def resolve_field(self, entity_type, field_spec=None, auto_prefix=True, implicit_aliases=True, strict=False):
+    def resolve_field(self, entity_type, field_spec, auto_prefix=True, implicit_aliases=True, strict=False):
 
         spec_parts = field_spec.split('.')
 
@@ -285,14 +285,27 @@ class Schema(object):
             resolved_fields.append(field)
         return resolved_fields
 
-    def resolve_structure(self, x, **kwargs):
+    def resolve_one_field(self, entity_type, field_spec, **kwargs):
+        res = self.resolve_field(entity_type, field_spec, **kwargs)
+        if len(res) == 1:
+            return res[0]
+        else:
+            raise ValueError('%r returned %s %s fields' % (field_spec, len(res), entity_type))
+
+    def resolve_fields(self, entity_type, field_specs, **kwargs):
+        res = []
+        for field_spec in field_specs:
+            res.extend(self.resolve_field(entity_type, field_spec, **kwargs))
+        return res
+
+    def resolve_structure(self, x, entity_type=None, **kwargs):
 
         if isinstance(x, (list, tuple)):
             return type(x)(self.resolve_structure(x, **kwargs) for x in x)
 
         elif isinstance(x, dict):
-            if 'type' in x and x['type'] in self.entities:
-                entity_type = x['type']
+            entity_type = entity_type or x.get('type')
+            if entity_type and entity_type in self.entities:
                 new_values = {}
                 for field_spec, value in x.iteritems():
                     value = self.resolve_structure(value)

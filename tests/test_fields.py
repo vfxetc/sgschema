@@ -25,6 +25,7 @@ class TestResolveFields(TestCase):
                     },
                     'field_tags': {
                         'y': ['attr'],
+                        'multi': ['multi_a', 'multi_b'],
                     }
                 }
             },
@@ -68,4 +69,16 @@ class TestResolveFields(TestCase):
         self.assertEqual(self.s.resolve_field('Entity', '!missing'), ['missing'])
         self.assertEqual(self.s.resolve_field('Entity', 'missing'), ['missing'])
         self.assertRaises(ValueError, self.s.resolve_field, 'Entity', 'missing', strict=True)
+
+    def test_one(self):
+        self.assertEqual(self.s.resolve_one_field('Entity', 'sg_type'), 'sg_type')
+        self.assertEqual(self.s.resolve_one_field('Entity', '$a'), 'attr')
+        self.assertEqual(self.s.resolve_one_field('Entity', '#x'), 'attr')
+        self.assertRaises(ValueError, self.s.resolve_one_field, 'Entity', '#missing')
+        self.assertRaises(ValueError, self.s.resolve_one_field, 'Entity', '#multi')
+
+    def test_many(self):
+        self.assertEqual(self.s.resolve_fields('Entity', ['sg_type', 'version', '#x', '#multi']), [
+            'sg_type', 'sg_version', 'attr', 'multi_a', 'multi_b',
+        ])
 
