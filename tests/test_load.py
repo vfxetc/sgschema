@@ -1,5 +1,6 @@
 from . import *
 
+
 class TestLoading(TestCase):
 
     def test_load_entity_tags(self):

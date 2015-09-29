@@ -285,6 +285,30 @@ class Schema(object):
             resolved_fields.append(field)
         return resolved_fields
 
+    def resolve_structure(self, x, **kwargs):
+
+        if isinstance(x, (list, tuple)):
+            return type(x)(self.resolve_structure(x, **kwargs) for x in x)
+
+        elif isinstance(x, dict):
+            if 'type' in x and x['type'] in self.entities:
+                entity_type = x['type']
+                new_values = {}
+                for field_spec, value in x.iteritems():
+                    value = self.resolve_structure(value)
+                    for field in self.resolve_field(entity_type, field_spec, **kwargs):
+                        new_values[field] = value
+                return new_values
+            else:
+                return {
+                    k: self.resolve_structure(v, **kwargs)
+                    for k, v in x.iteritems()
+                }
+
+        else:
+            return x
+
+
 
 
 
