@@ -233,7 +233,9 @@ class Schema(object):
             try:
                 return [entity.field_aliases[field_spec[1:]]]
             except KeyError:
-                return []
+                # We need to maintain $FROM$, and we want this to fail
+                # if it gets to Shotgun.
+                return [field_spec]
         if not op.isalnum():
             raise ValueError('unknown field operation for %s %r' % (entity_spec, field_spec))
 
@@ -256,6 +258,13 @@ class Schema(object):
         return [field_spec]
 
     def resolve_field(self, entity_type, field_spec, auto_prefix=True, implicit_aliases=True, strict=False):
+
+        # Return a merge of lists of field specs.
+        if isinstance(field_spec, (tuple, list)):
+            res = []
+            for x in field_spec:
+                res.extend(self.resolve_field(entity_type, x, auto_prefix, implicit_aliases, strict))
+            return res
 
         spec_parts = field_spec.split('.')
 
@@ -291,12 +300,6 @@ class Schema(object):
             return res[0]
         else:
             raise ValueError('%r returned %s %s fields' % (field_spec, len(res), entity_type))
-
-    def resolve_fields(self, entity_type, field_specs, **kwargs):
-        res = []
-        for field_spec in field_specs:
-            res.extend(self.resolve_field(entity_type, field_spec, **kwargs))
-        return res
 
     def resolve_structure(self, x, entity_type=None, **kwargs):
 

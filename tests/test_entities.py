@@ -4,7 +4,6 @@ from . import *
 class TestResolveEntities(TestCase):
 
     def setUp(self):
-
         self.s = s = Schema()
         s.load({
             'entities': {

@@ -4,7 +4,6 @@ from . import *
 class TestLoading(TestCase):
 
     def test_load_entity_tags(self):
-
         s = Schema()
         s.load({
             'entities': {'Entity': {

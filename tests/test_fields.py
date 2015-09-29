@@ -4,7 +4,6 @@ from . import *
 class TestResolveFields(TestCase):
 
     def setUp(self):
-
         self.s = s = Schema()
         s.load({
             'entities': {
@@ -64,7 +63,7 @@ class TestResolveFields(TestCase):
         self.assertRaises(ValueError, self.s.resolve_field, 'Missing', 'field_name')
 
     def test_missing(self):
-        self.assertEqual(self.s.resolve_field('Entity', '$missing'), [])
+        self.assertEqual(self.s.resolve_field('Entity', '$missing'), ['$missing'])
         self.assertEqual(self.s.resolve_field('Entity', '#missing'), [])
         self.assertEqual(self.s.resolve_field('Entity', '!missing'), ['missing'])
         self.assertEqual(self.s.resolve_field('Entity', 'missing'), ['missing'])
@@ -78,7 +77,7 @@ class TestResolveFields(TestCase):
         self.assertRaises(ValueError, self.s.resolve_one_field, 'Entity', '#multi')
 
     def test_many(self):
-        self.assertEqual(self.s.resolve_fields('Entity', ['sg_type', 'version', '#x', '#multi']), [
+        self.assertEqual(self.s.resolve_field('Entity', ['sg_type', 'version', '#x', '#multi']), [
             'sg_type', 'sg_version', 'attr', 'multi_a', 'multi_b',
         ])
 

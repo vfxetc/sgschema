@@ -4,9 +4,12 @@ from . import *
 class TestResolveDeepFields(TestCase):
 
     def setUp(self):
-        self.s = s = load_schema()
+        self.s = s = Schema()
         self.s.load({
             'Task': {
+                'fields': {
+                    'sg_status_list': {},
+                },
                 'field_aliases': {
                     'status': 'sg_status_list',
                     'parent': 'entity',
@@ -16,6 +19,9 @@ class TestResolveDeepFields(TestCase):
                 }
             },
             'Shot': {
+                'fields': {
+                    'sg_status_list': {},
+                },
                 'field_aliases': {
                     'status': 'sg_status_list',
                 },
@@ -25,6 +31,9 @@ class TestResolveDeepFields(TestCase):
             },
 
             'Asset': {
+                'fields': {
+                    'sg_status_list': {},
+                },
                 'field_aliases': {
                     'status': 'sg_status_list',
                 },
