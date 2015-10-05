@@ -36,7 +36,9 @@ class Field(dict):
         raw_private = schema._raw_private['entity_fields'][self.entity.name].get(self.name, {})
 
         if raw_private.get('identifier_column'):
-            self._tags.add('identifier_column')
+            # It would be nice to add a "name" alias, but that might be
+            # a little too magical.
+            self._aliases.add('shotgun:name')
 
         if self.data_type in ('entity', 'multi_entity'):
             types_ = raw_private['allowed_entity_types'] or []

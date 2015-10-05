@@ -15,6 +15,18 @@ class Schema(object):
 
     @classmethod
     def from_cache(cls, base_url):
+        """Use setuptools' entrypoints to load a cached schema.
+
+        Calls functions registered to "sgschema_cache" until one of them
+        returns something non-None. That is loaded into the schema.
+
+        The resulting object is memoized by the given URL, so multiple calls
+        to this method result in the same ``Schema`` instance.
+
+        :param str base_url: The ``shotgun.base_url`` to lookup the schema for.
+        :returns: A ``Schema`` instance.
+
+        """
 
         # If it is a Shotgun instance, grab the url.
         if not isinstance(base_url, basestring):
@@ -55,6 +67,7 @@ class Schema(object):
 
     @cached_property
     def entity_aliases(self):
+        """Mapping of entity aliases to entity names."""
         entity_aliases = dict(self._entity_aliases)
         for entity in self.entities.itervalues():
             for alias in entity._aliases:
@@ -63,6 +76,7 @@ class Schema(object):
 
     @cached_property
     def entity_tags(self):
+        """Mapping of entity tags to lists of entity names."""
         entity_tags = {k: set(v) for k, v in self._entity_tags.iteritems()}
         for entity in self.entities.itervalues():
             for tag in entity._tags:
@@ -76,7 +90,20 @@ class Schema(object):
             return self.entities.setdefault(name, Entity(self, name))
 
     def read(self, sg):
-        
+        """Read the raw public and private schemas from Shotgun.
+
+        :param sg: The ``shotgun_api3.Shotgun`` instance to read the schema from.
+
+        This reads the schema via ``Shotgun.schema_read()`` and
+        ``Shotgun.schema_entity_read()``, as well as the "private" schema
+        embedded into the Javascript of the Shotgun website.
+
+        The raw schemas are then reduced, retaining only data types, and
+        other info required for SGSchema's operations. It may be required
+        to re-read (and cache) schema data as SGSchema is improved.
+
+        """
+
         # Most of the time we don't need this, so don't bother importing.
         from requests import Session
 
@@ -115,6 +142,13 @@ class Schema(object):
                 field._reduce_raw(self, raw_field)
 
     def dump(self, path, raw=False):
+        """Save the schema as JSON to the given path.
+
+        :param str path: The path to save to.
+        :param bool raw: Save the raw schema, or the reduced version?
+
+        """
+
         if raw:
             with open(path, 'w') as fh:
                 fh.write(json.dumps({
@@ -128,13 +162,14 @@ class Schema(object):
                 fh.write(json.dumps(data, indent=4, sort_keys=True))
 
     def load_directory(self, dir_path):
+        """Load all ``.json`` files in the given directory."""
         for file_name in os.listdir(dir_path):
             if file_name.startswith('.') or not file_name.endswith('.json'):
                 continue
             self.load(os.path.join(dir_path, file_name))
 
     def load_raw(self, path):
-
+        """Load a JSON file containing a raw schema."""
         raw = json.loads(open(path).read())
         keys = 'raw_entities', 'raw_fields', 'raw_private'
 
@@ -152,6 +187,12 @@ class Schema(object):
         self._reduce_raw()
 
     def load(self, input_):
+        """Load a JSON file or ``dict`` containing schema structures.
+
+        If passed a string, we treat is as a path to a JSON file.
+        If passed a dict, it is handled directly.
+
+        """
 
         if isinstance(input_, basestring):
             encoded = open(input_).read()
