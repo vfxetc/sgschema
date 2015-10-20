@@ -4,27 +4,24 @@ from . import *
 class TestResolveStructures(TestCase):
 
     def setUp(self):
-        self.s = s = Schema()
-        s.load({
+        self.s = Schema()
+        self.s.load({
             'entities': {
                 'Entity': {
                     'fields': {
-                        'attr': {
-                            'aliases': ['a', 'with:namespace'],
-                            'tags': ['x'],
-
-                        },
+                        'attr': {},
                         'sg_version': {},
                         'sg_type': {},
                         'name': {},
                         'sg_name': {},
                     },
                     'field_aliases': {
-                        'b': 'attr',
+                        'alias': 'attr',
+                        'with:namespace': 'attr',
                     },
                     'field_tags': {
-                        'y': ['attr'],
-                        'multi': ['multi_a', 'multi_b']
+                        'tagone': ['attr'],
+                        'tagtwo': ['multi_a', 'multi_b'],
                     }
                 }
             },
@@ -47,8 +44,8 @@ class TestResolveStructures(TestCase):
             },
             {
                 'type': 'Entity',
-                '$b': 'attr_value',
-                '#multi': 'xxx',
+                '$alias': 'attr_value',
+                '#tagtwo': 'xxx',
             }
         ]), [
             {

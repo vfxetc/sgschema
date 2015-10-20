@@ -61,27 +61,8 @@ class Schema(object):
         self._raw_private = None
 
         self.entities = {}
-
-        self._entity_aliases = {}
-        self._entity_tags = {}
-
-    @cached_property
-    def entity_aliases(self):
-        """Mapping of entity aliases to entity names."""
-        entity_aliases = dict(self._entity_aliases)
-        for entity in self.entities.itervalues():
-            for alias in entity._aliases:
-                entity_aliases[alias] = entity.name
-        return entity_aliases
-
-    @cached_property
-    def entity_tags(self):
-        """Mapping of entity tags to lists of entity names."""
-        entity_tags = {k: set(v) for k, v in self._entity_tags.iteritems()}
-        for entity in self.entities.itervalues():
-            for tag in entity._tags:
-                entity_tags.setdefault(tag, set()).add(entity.name)
-        return entity_tags
+        self.entity_aliases = {}
+        self.entity_tags = {}
 
     def _get_or_make_entity(self, name):
         try:
@@ -141,25 +122,29 @@ class Schema(object):
                 field = entity._get_or_make_field(field_name)
                 field._reduce_raw(self, raw_field)
 
-    def dump(self, path, raw=False):
+    def dump_raw(self, path):
+        with open(path, 'w') as fh:
+            fh.write(json.dumps({
+                'raw_fields': self._raw_fields,
+                'raw_entities': self._raw_entities,
+                'raw_private': self._raw_private,
+            }, indent=4, sort_keys=True))
+
+    def __getstate__(self):
+        return dict((k, v) for k, v in (
+            ('entities', dict((n, e.__getstate__()) for n, e in self.entities.iteritems())),
+            ('entity_aliases', self.entity_aliases),
+            ('entity_tags', self.entity_tags),
+        ) if v)
+
+    def dump(self, path):
         """Save the schema as JSON to the given path.
 
         :param str path: The path to save to.
-        :param bool raw: Save the raw schema, or the reduced version?
 
         """
-
-        if raw:
-            with open(path, 'w') as fh:
-                fh.write(json.dumps({
-                    'raw_fields': self._raw_fields,
-                    'raw_entities': self._raw_entities,
-                    'raw_private': self._raw_private,
-                }, indent=4, sort_keys=True))
-        else:
-            data = {'entities': {entity.name: entity._dump() for entity in self.entities.itervalues()}}
-            with open(path, 'w') as fh:
-                fh.write(json.dumps(data, indent=4, sort_keys=True))
+        with open(path, 'w') as fh:
+            fh.write(json.dumps(self, indent=4, sort_keys=True, default=lambda x: x.__getstate__()))
 
     def load_directory(self, dir_path):
         """Load all ``.json`` files in the given directory."""
@@ -202,6 +187,10 @@ class Schema(object):
         else:
             raise TypeError('require str path or dict schema')
 
+        self.__setstate__(raw_schema)
+
+    def __setstate__(self, raw_schema):
+
         # If it is a dictionary of entity types, pretend it is in an "entities" key.
         title_cased = sum(int(k[:1].isupper()) for k in raw_schema)
         if title_cased:
@@ -210,13 +199,13 @@ class Schema(object):
             raw_schema = {'entities': raw_schema}
 
         for type_name, value in raw_schema.pop('entities', {}).iteritems():
-            self._get_or_make_entity(type_name)._load(value)
+            self._get_or_make_entity(type_name).__setstate__(value)
 
-        merge_update(self._entity_aliases, raw_schema.pop('entity_aliases', {}))
-        merge_update(self._entity_tags   , raw_schema.pop('entity_tags',    {}))
+        merge_update(self.entity_aliases, raw_schema.pop('entity_aliases', {}))
+        merge_update(self.entity_tags   , raw_schema.pop('entity_tags',    {}))
 
         if raw_schema:
-            raise ValueError('unknown keys: %s' % ', '.join(sorted(raw_schema)))
+            raise ValueError('unknown schema keys: %s' % ', '.join(sorted(raw_schema)))
 
     def resolve_entity(self, entity_spec, implicit_aliases=True, strict=False):
 

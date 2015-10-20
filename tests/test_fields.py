@@ -9,22 +9,19 @@ class TestResolveFields(TestCase):
             'entities': {
                 'Entity': {
                     'fields': {
-                        'attr': {
-                            'aliases': ['a', 'with:namespace'],
-                            'tags': ['x'],
-
-                        },
+                        'attr': {},
                         'sg_version': {},
                         'sg_type': {},
                         'name': {},
                         'sg_name': {},
                     },
                     'field_aliases': {
-                        'b': 'attr',
+                        'alias': 'attr',
+                        'with:namespace': 'attr',
                     },
                     'field_tags': {
-                        'y': ['attr'],
-                        'multi': ['multi_a', 'multi_b'],
+                        'tagone': ['attr'],
+                        'tagtwo': ['multi_a', 'multi_b'],
                     }
                 }
             },
@@ -32,10 +29,9 @@ class TestResolveFields(TestCase):
 
     def test_explicit(self):
         self.assertEqual(self.s.resolve_field('Entity', '!attr'), ['attr'])
-        self.assertEqual(self.s.resolve_field('Entity', '$a'), ['attr'])
-        self.assertEqual(self.s.resolve_field('Entity', '$b'), ['attr'])
-        self.assertEqual(self.s.resolve_field('Entity', '#x'), ['attr'])
-        self.assertEqual(self.s.resolve_field('Entity', '#y'), ['attr'])
+        self.assertEqual(self.s.resolve_field('Entity', '$alias'), ['attr'])
+        self.assertEqual(self.s.resolve_field('Entity', '#tagone'), ['attr'])
+        self.assertEqual(self.s.resolve_field('Entity', '#tagtwo'), ['multi_a', 'multi_b'])
 
     def test_namespace(self):
         self.assertEqual(self.s.resolve_field('Entity', '$with:namespace'), ['attr'])
@@ -43,8 +39,7 @@ class TestResolveFields(TestCase):
 
     def test_implicit(self):
         self.assertEqual(self.s.resolve_field('Entity', 'attr'), ['attr'])
-        self.assertEqual(self.s.resolve_field('Entity', 'a'), ['attr'])
-        self.assertEqual(self.s.resolve_field('Entity', 'b'), ['attr'])
+        self.assertEqual(self.s.resolve_field('Entity', 'alias'), ['attr'])
 
     def test_prefix(self):
         self.assertEqual(self.s.resolve_field('Entity', 'sg_version'), ['sg_version'])
@@ -71,13 +66,13 @@ class TestResolveFields(TestCase):
 
     def test_one(self):
         self.assertEqual(self.s.resolve_one_field('Entity', 'sg_type'), 'sg_type')
-        self.assertEqual(self.s.resolve_one_field('Entity', '$a'), 'attr')
-        self.assertEqual(self.s.resolve_one_field('Entity', '#x'), 'attr')
-        self.assertRaises(ValueError, self.s.resolve_one_field, 'Entity', '#missing')
-        self.assertRaises(ValueError, self.s.resolve_one_field, 'Entity', '#multi')
+        self.assertEqual(self.s.resolve_one_field('Entity', '$alias'), 'attr')
+        self.assertEqual(self.s.resolve_one_field('Entity', '#tagone'), 'attr')
+        self.assertRaises(ValueError, self.s.resolve_one_field, 'Entity', '#tagnone')
+        self.assertRaises(ValueError, self.s.resolve_one_field, 'Entity', '#tagtwo')
 
     def test_many(self):
-        self.assertEqual(self.s.resolve_field('Entity', ['sg_type', 'version', '#x', '#multi']), [
+        self.assertEqual(self.s.resolve_field('Entity', ['sg_type', 'version', '$alias', '#tagtwo']), [
             'sg_type', 'sg_version', 'attr', 'multi_a', 'multi_b',
         ])
 

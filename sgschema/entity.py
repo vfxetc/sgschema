@@ -10,44 +10,8 @@ class Entity(object):
         self.name = name
         
         self.fields = {}
-
-        self._aliases = set()
-        self._tags = set()
-
-        self._field_aliases = {}
-        self._field_tags = {}
-
-    @cached_property
-    def field_aliases(self):
-        field_aliases = dict(self._field_aliases)
-        for field in self.fields.itervalues():
-            for alias in field._aliases:
-                field_aliases[alias] = field.name
-        return field_aliases
-
-    @cached_property
-    def field_tags(self):
-        field_tags = {k: set(v) for k, v in self._field_tags.iteritems()}
-        for field in self.fields.itervalues():
-            for tag in field._tags:
-                field_tags.setdefault(tag, set()).add(field.name)
-        return field_tags
-
-    @cached_property
-    def aliases(self):
-        aliases = set(self._aliases)
-        for k, v in self.schema._entity_aliases.iteritems():
-            if v == self.name:
-                aliases.add(k)
-        return aliases
-
-    @cached_property
-    def tags(self):
-        tags = set(self._tags)
-        for k, v in self.schema._entity_tags.iteritems():
-            if self.name in v:
-                tags.add(k)
-        return tags
+        self.field_aliases = {}
+        self.field_tags = {}
 
     def _get_or_make_field(self, name):
         try:
@@ -58,22 +22,17 @@ class Entity(object):
     def _reduce_raw(self, schema, raw_entity):
         pass
 
-    def _load(self, raw):
+    def __getstate__(self):
+        return dict((k, v) for k, v in (
+            ('fields', dict((n, f.__getstate__()) for n, f in self.fields.iteritems())),
+            ('field_aliases', self.field_aliases),
+            ('field_tags', self.field_tags),
+        ) if v)
+
+    def __setstate__(self, raw):
         for name, value in raw.pop('fields', {}).iteritems():
-            self._get_or_make_field(name)._load(value)
-
-        self._field_aliases.update(raw.pop('field_aliases', {}))
-        self._field_tags.update(raw.pop('field_tags', {}))
-
-        self._aliases.update(raw.pop('aliases', ()))
-        self._tags.update(raw.pop('tags', ()))
-
+            self._get_or_make_field(name).__setstate__(value)
+        self.field_aliases.update(raw.pop('field_aliases', {}))
+        self.field_tags.update(raw.pop('field_tags', {}))
         if raw:
             raise ValueError('unknown entity keys: %s' % ', '.join(sorted(raw)))
-
-    def _dump(self):
-        return {k: v for k, v in (
-            ('fields', {field.name: field._dump() for field in self.fields.itervalues()}),
-            ('tags', sorted(self.tags)),
-            ('aliases', sorted(self.aliases)),
-        ) if v}

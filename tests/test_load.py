@@ -1,3 +1,5 @@
+import json
+
 from . import *
 
 
@@ -6,71 +8,78 @@ class TestLoading(TestCase):
     def test_load_entity_tags(self):
         s = Schema()
         s.load({
-            'entities': {'Entity': {
-                'tags': ['a'],
-            }},
-            'entity_tags': {'b': ['Entity']},
+            'entities': {
+                'Entity': {},
+            },
+            'entity_tags': {
+                'X': ['Entity'],
+            },
         })
-
-        self.assertIn('a', s.entities['Entity'].tags)
-        self.assertIn('b', s.entities['Entity'].tags)
-        self.assertIn('Entity', s.entity_tags['a'])
-        self.assertIn('Entity', s.entity_tags['b'])
+        self.assertIn('Entity', s.entity_tags['X'])
 
     def test_load_field_tags(self):
-
         s = Schema()
         s.load({
             'Entity': {
                 'fields': {
-                    'sg_type': {
-                        'tags': ['a'],
-                    },
+                    'sg_type': {}
                 },
                 'field_tags': {
-                    'b': ['sg_type'],
+                    'x': ['sg_type'],
                 },
             },
         })
-
-        self.assertIn('a', s.entities['Entity'].fields['sg_type'].tags)
-        self.assertIn('b', s.entities['Entity'].fields['sg_type'].tags)
-        self.assertIn('sg_type', s.entities['Entity'].field_tags['a'])
-        self.assertIn('sg_type', s.entities['Entity'].field_tags['b'])
+        self.assertIn('sg_type', s.entities['Entity'].field_tags['x'])
 
     def test_load_entity_aliases(self):
-
         s = Schema()
         s.load({
-            'entities': {'Entity': {
-                'aliases': ['A'],
-            }},
-            'entity_aliases': {'B': 'Entity'},
+            'entities': {
+                'Entity': {}
+            },
+            'entity_aliases': {'X': 'Entity'},
         })
-
-        self.assertIn('A', s.entities['Entity'].aliases)
-        self.assertIn('B', s.entities['Entity'].aliases)
-        self.assertEqual('Entity', s.entity_aliases['A'])
-        self.assertEqual('Entity', s.entity_aliases['B'])
+        self.assertEqual('Entity', s.entity_aliases['X'])
 
     def test_load_field_aliases(self):
-
         s = Schema()
         s.load({
             'Entity': {
                 'fields': {
-                    'sg_type': {
-                        'aliases': ['a'],
-                    },
+                    'sg_type': {},
                 },
                 'field_aliases': {
-                    'b': 'sg_type',
+                    'x': 'sg_type',
                 },
             },
         })
+        self.assertEqual('sg_type', s.entities['Entity'].field_aliases['x'])
 
-        self.assertIn('a', s.entities['Entity'].fields['sg_type'].aliases)
-        self.assertIn('b', s.entities['Entity'].fields['sg_type'].aliases)
-        self.assertEqual('sg_type', s.entities['Entity'].field_aliases['a'])
-        self.assertEqual('sg_type', s.entities['Entity'].field_aliases['b'])
+    def test_serialize(self):
 
+        raw = {
+            'entities': {
+                'Entity': {
+                    'fields': {
+                        'sg_type': {},
+                    },
+                    'field_aliases': {
+                        'x': 'sg_type',
+                    },
+                },
+            },
+            'entity_aliases': {
+                'Alias': 'Entity',
+            },
+            'entity_tags': {
+                'Tag': ['Entity'],
+            },
+        }
+
+        schema = Schema()
+        schema.load(raw)
+
+        raw2 = json.loads(json.dumps(raw))
+
+        self.assertEqual(raw, raw2)
+        

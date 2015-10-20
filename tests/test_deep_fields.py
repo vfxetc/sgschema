@@ -57,7 +57,7 @@ class TestResolveDeepFields(TestCase):
         self.assertEqual(self.s.resolve_field('Task', 'entity.Shot.$status'), ['entity.Shot.sg_status_list'])
 
     def test_explicit_tags(self):
-        self.assertEqual(self.s.resolve_field('Task', '$parent.Shot.#core'), ['entity.Shot.sg_sequence', 'entity.Shot.code', 'entity.Shot.description'])
+        self.assertEqual(self.s.resolve_field('Task', '$parent.Shot.#core'), ['entity.Shot.code', 'entity.Shot.description', 'entity.Shot.sg_sequence'])
 
 
 
