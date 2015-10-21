@@ -24,7 +24,7 @@ class Entity(object):
 
     def __getstate__(self):
         return dict((k, v) for k, v in (
-            ('fields', dict((n, f.__getstate__()) for n, f in self.fields.iteritems())),
+            ('fields', self.fields),
             ('field_aliases', self.field_aliases),
             ('field_tags', self.field_tags),
         ) if v)
