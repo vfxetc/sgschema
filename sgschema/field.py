@@ -1,4 +1,3 @@
-from .utils import cached_property
 
 class Field(dict):
 
@@ -14,7 +13,7 @@ class Field(dict):
 
         self.data_type = raw_field['data_type']['value']
 
-        raw_private = schema._raw_private['entity_fields'][self.entity.name].get(self.name, {})
+        raw_private = schema.raw_private['entity_fields'][self.entity.name].get(self.name, {})
 
         if raw_private.get('identifier_column'):
             # It would be nice to add a "name" alias, but that might be

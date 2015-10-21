@@ -6,7 +6,7 @@ import re
 
 from .entity import Entity
 from .field import Field
-from .utils import cached_property, merge_update
+from .utils import merge_update
 
 
 class Schema(object):
@@ -15,13 +15,17 @@ class Schema(object):
 
     @classmethod
     def from_cache(cls, base_url):
-        """Use setuptools' entrypoints to load a cached schema.
+        """Use setuptools' entry points to load a cached schema.
 
-        Calls functions registered to "sgschema_cache" until one of them
-        returns something non-None. That is loaded into the schema.
+        Calls functions registered to "sgschema_cache", passing them a
+        ``Schema`` instance and the base URL, giving them the oppourtunity
+        to load from their caches.
 
-        The resulting object is memoized by the given URL, so multiple calls
-        to this method result in the same ``Schema`` instance.
+        If a function wants to assert it is the last entry point, it can
+        raise ``StopIteration``.
+
+        The resulting ``Schema`` is memoized for the base URL, so it is only
+        constructed once per Python session.
 
         :param str base_url: The ``shotgun.base_url`` to lookup the schema for.
         :returns: A ``Schema`` instance.
@@ -51,9 +55,14 @@ class Schema(object):
 
     def __init__(self):
 
-        self._raw_fields = None
-        self._raw_entities = None
-        self._raw_private = None
+        #: Result from ``shotgun.schema_read()``.
+        self.raw_fields = None
+
+        #: Result from ``shotgun.schema_entity_read()``.
+        self.raw_entities = None
+
+        #: Result from scraping ``{base_url}/page/schema``.
+        self.raw_private = None
 
         self.entities = {}
         self.entity_aliases = {}
@@ -86,8 +95,8 @@ class Schema(object):
         # SG.schema_field_read() is the same data per-entity as SG.schema_read().
         # SG.schema_entity_read() contains global name and visibility of each
         # entity type, but the visibility is likely to just be True for everything.
-        self._raw_fields = sg.schema_read()
-        self._raw_entities = sg.schema_entity_read()
+        self.raw_fields = sg.schema_read()
+        self.raw_entities = sg.schema_entity_read()
 
         # We also want the private schema which drives the website.
         # See <http://mikeboers.com/blog/2015/07/21/a-complete-shotgun-schema>.
@@ -101,29 +110,21 @@ class Schema(object):
         if not m:
             raise ValueError('schema does not appear to be at %s/page/schema' % sg.base_url)
 
-        self._raw_private = json.loads(m.group(1))
+        self.raw_private = json.loads(m.group(1))
 
         self._reduce_raw()
 
     def _reduce_raw(self):
         
-        for type_name, raw_entity in self._raw_entities.iteritems():
+        for type_name, raw_entity in self.raw_entities.iteritems():
             entity = self._get_or_make_entity(type_name)
             entity._reduce_raw(self, raw_entity)
 
-        for type_name, raw_fields in self._raw_fields.iteritems():
+        for type_name, raw_fields in self.raw_fields.iteritems():
             entity = self._get_or_make_entity(type_name)
             for field_name, raw_field in raw_fields.iteritems():
                 field = entity._get_or_make_field(field_name)
                 field._reduce_raw(self, raw_field)
-
-    def dump_raw(self, path):
-        with open(path, 'w') as fh:
-            fh.write(json.dumps({
-                'raw_fields': self._raw_fields,
-                'raw_entities': self._raw_entities,
-                'raw_private': self._raw_private,
-            }, indent=4, sort_keys=True))
 
     def __getstate__(self):
         return dict((k, v) for k, v in (
@@ -140,24 +141,6 @@ class Schema(object):
         """
         with open(path, 'w') as fh:
             fh.write(json.dumps(self, indent=4, sort_keys=True, default=lambda x: x.__getstate__()))
-
-    def load_raw(self, path):
-        """Load a JSON file containing a raw schema."""
-        raw = json.loads(open(path).read())
-        keys = 'raw_entities', 'raw_fields', 'raw_private'
-
-        # Make sure we have the right keys, and only the right keys.
-        missing = [k for k in keys if k not in raw]
-        if missing:
-            raise ValueError('missing keys in raw schema: %s' % ', '.join(missing))
-        if len(keys) != 3:
-            extra = [k for k in raw if k not in keys]
-            raise ValueError('extra keys in raw schema: %s' % ', '.join(extra))
-
-        for k in keys:
-            setattr(self, '_' + k, raw[k])
-
-        self._reduce_raw()
 
     def load_directory(self, dir_path):
         """Load all ``.json`` and ``.yaml`` files in the given directory."""
@@ -271,7 +254,14 @@ class Schema(object):
             raise ValueError('unknown schema keys: %s' % ', '.join(sorted(raw_schema)))
 
     def resolve_entity(self, entity_spec, implicit_aliases=True, strict=False):
+        """Resolve an entity-type specification into a list of entity types.
 
+        :param str entity_spec: An entity-type specification.
+        :param bool implicit_aliases: Lookup aliases without explicit ``$`` prefix?
+        :param bool strict: Raise ``ValueError`` if we can't identify the entity type?
+        :returns: ``list`` of entity types (``str``).
+
+        """
         op = entity_spec[0]
         if op == '!':
             return [entity_spec[1:]]
@@ -298,6 +288,13 @@ class Schema(object):
         return [entity_spec]
 
     def resolve_one_entity(self, entity_spec, **kwargs):
+        """Resolve an entity-type specification into a single entity type.
+
+        Parameters are the same as for :meth:`resolve_entity`.
+
+        :raises ValueError: when zero or multiple entity types are resolved.
+
+        """
         res = self.resolve_entity(entity_spec, **kwargs)
         if len(res) == 1:
             return res[0]
@@ -351,6 +348,16 @@ class Schema(object):
         return [field_spec]
 
     def resolve_field(self, entity_type, field_spec, auto_prefix=True, implicit_aliases=True, strict=False):
+        """Resolve an field specification into a list of field names.
+
+        :param str entity_type: An entity type (``str``).
+        :param str field_spec: An field specification.
+        :param bool auto_prefix: Lookup field with ``sg_`` prefix?
+        :param bool implicit_aliases: Lookup aliases without explicit ``$`` prefix?
+        :param bool strict: Raise ``ValueError`` if we can't identify the entity type?
+        :returns: ``list`` of field names.
+
+        """
 
         # Return a merge of lists of field specs.
         if isinstance(field_spec, (tuple, list)):
@@ -388,6 +395,13 @@ class Schema(object):
         return resolved_fields
 
     def resolve_one_field(self, entity_type, field_spec, **kwargs):
+        """Resolve a field specification into a single field name.
+
+        Parameters are the same as for :meth:`resolve_fields`.
+
+        :raises ValueError: when zero or multiple fields are resolved.
+
+        """
         res = self.resolve_field(entity_type, field_spec, **kwargs)
         if len(res) == 1:
             return res[0]
@@ -395,6 +409,17 @@ class Schema(object):
             raise ValueError('%r returned %s %s fields' % (field_spec, len(res), entity_type))
 
     def resolve_structure(self, x, entity_type=None, **kwargs):
+        """Traverse a nested structure resolving names in entities.
+
+        Recurses into ``list``, ``tuple`` and ``dict``, looking for ``dicts``
+        with both a ``type`` and ``id`` (e.g. they could be Shotgun entities),
+        and resolves all other keys within them.
+
+        All ``**kwargs`` are passed to :meth:`resolve_field`.
+
+        Returns a copy of the nested structure.
+
+        """
 
         if isinstance(x, (list, tuple)):
             return type(x)(self.resolve_structure(x, **kwargs) for x in x)

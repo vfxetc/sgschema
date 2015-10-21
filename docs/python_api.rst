@@ -8,11 +8,11 @@ Python API
 
 .. automodule:: sgschema.entity
 
-..autoclass:: sgschema.entity.Entity
+.. autoclass:: sgschema.entity.Entity
     :members:
 
 .. automodule:: sgschema.field
 
-..autoclass:: sgschema.field.Field
+.. autoclass:: sgschema.field.Field
     :members:
 

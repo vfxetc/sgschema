@@ -1,4 +1,7 @@
 
+- Metadata/config on each entity/field at some point, for users to stuff
+  whatever they want.
+
 - Public API:
 
     Schema.is_variable_len(spec) -> can it return non-one results?

@@ -13,7 +13,7 @@ different across the history of Shotgun.
 
 You may provide aliases and tags for entity types and fields, as well as
 automatically detect and use the common ``"sg_"`` prefix on fields. Example uses
-(from a theoretical pipeline pipeline):
+(from a theoretical pipeline):
 
 - ``$Publish`` resolves to the ``PublishEvent`` entity type;
 - ``$sgpublish:type`` is aliased to the ``PublishEvent.sg_type`` field;
@@ -25,39 +25,29 @@ automatically detect and use the common ``"sg_"`` prefix on fields. Example uses
 This project is tightly integrated into SGSession, and used in all operations.
 
 
-Caching
--------
+Dynamic Loading and Caching
+---------------------------
 
-In general, schemas should be preprocessed and cached, then reloaded for each
-use. To read the schema, reduce it, and cache it::
+Packages can define their own schemas at runtime via ``pkg_resources``
+entry points. The :meth:`.Schema.load_entry_points` calls registered
+functions (to ``sgcache_loaders`` by default) in order to construct a schema.
 
-    schema = Schema()
-    schema.read(shotgun_object)
-    schema.dump('/path/to/cache.json')
-
-The cached schema can then be loaded manually::
+A good pattern for creating a schema object is::
 
     schema = Schema()
-    schema.load('/path/to/cache.json')
+    schema.read(shotgun_api3_instance)
+    schema.load_entry_points(base_url)
 
-The :meth:`Schema.from_cache` method uses setuptools' entrypoints to find
-cached schemas from the runtime environment::
+This is extremely time consuming to run at startup, so it is recommended to
+pre-process and cache the schema. First load the schema as above, then dump
+it to a file::
 
-    schema = sgschema.Schema.from_cache(shotgun.base_url)
+    schema.dump(os.path.join(cache_dir, '%s.json' % base_url))
 
-That class method calls any functions registered as a ``sgschema_cache``
-setuptools entrypoint. Those functions are called with the passed URL.
-Whatever non-None value is returned first is loaded into the schema. The process
-is effectively::
+Then, register an entry point to the ``sgschema_cache`` group, which loads it::
 
-    schema = Schema()
-    for func in funcs_from_entrypoints:
-        raw_schema = func(base_url)
-        if raw_schema:
-            schema.load(raw_schema)
-            break
-
-
+    def load_cache(schema, base_url):
+        schema.load(os.path.join(cache_dir, '%s.json' % base_url))
 
 
 

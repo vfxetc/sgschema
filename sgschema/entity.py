@@ -1,5 +1,4 @@
 from .field import Field
-from .utils import cached_property
 
 
 class Entity(object):
