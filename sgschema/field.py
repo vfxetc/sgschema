@@ -1,5 +1,5 @@
 
-class Field(dict):
+class Field(object):
 
     def __init__(self, entity, name):
         
