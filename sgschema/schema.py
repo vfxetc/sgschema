@@ -126,7 +126,7 @@ class Schema(object):
                 field = entity._get_or_make_field(field_name)
                 field._reduce_raw(self, raw_field)
 
-    def __getstate__(self):
+    def _dump(self):
         return dict((k, v) for k, v in (
             ('entities', self.entities),
             ('entity_aliases', self.entity_aliases),
@@ -140,7 +140,7 @@ class Schema(object):
 
         """
         with open(path, 'w') as fh:
-            fh.write(json.dumps(self, indent=4, sort_keys=True, default=lambda x: x.__getstate__()))
+            fh.write(json.dumps(self, indent=4, sort_keys=True, default=lambda x: x._dump()))
 
     def load_directory(self, dir_path):
         """Load all ``.json`` and ``.yaml`` files in the given directory."""
@@ -227,11 +227,11 @@ class Schema(object):
         for arg in args:
             if not isinstance(arg, dict):
                 raise TypeError('Schema.update needs dict')
-            self.__setstate__(arg)
+            self._load(arg)
         if kwargs:
-            self.__setstate__(kwargs)
+            self._load(kwargs)
 
-    def __setstate__(self, raw_schema):
+    def _load(self, raw_schema):
 
         # We mutate this object, and aren't sure how any pickler will feel
         # about it.
@@ -245,7 +245,7 @@ class Schema(object):
             raw_schema = {'entities': raw_schema}
 
         for type_name, value in raw_schema.pop('entities', {}).iteritems():
-            self._get_or_make_entity(type_name).__setstate__(value)
+            self._get_or_make_entity(type_name)._load(value)
 
         merge_update(self.entity_aliases, raw_schema.pop('entity_aliases', {}))
         merge_update(self.entity_tags   , raw_schema.pop('entity_tags',    {}))

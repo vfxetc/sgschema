@@ -21,16 +21,16 @@ class Entity(object):
     def _reduce_raw(self, schema, raw_entity):
         pass
 
-    def __getstate__(self):
+    def _dump(self):
         return dict((k, v) for k, v in (
             ('fields', self.fields),
             ('field_aliases', self.field_aliases),
             ('field_tags', self.field_tags),
         ) if v)
 
-    def __setstate__(self, raw):
+    def _load(self, raw):
         for name, value in raw.pop('fields', {}).iteritems():
-            self._get_or_make_field(name).__setstate__(value)
+            self._get_or_make_field(name)._load(value)
         self.field_aliases.update(raw.pop('field_aliases', {}))
         self.field_tags.update(raw.pop('field_tags', {}))
         if raw:
