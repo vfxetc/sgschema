@@ -272,8 +272,13 @@ class Schema(object):
                 return [self.entity_aliases[entity_spec[1:]]]
             except KeyError:
                 return []
-        if not op.isalnum():
-            raise ValueError('unknown entity operation for %r' % entity_spec)
+
+        # We used to raise an exception if not op.isalnum(), but then we found
+        # that sometimes other tools stuff data into an entity (e.g. __path__
+        # in the SGFS command parse_spec utility function) as a hack.
+        # An exception there would break that hack. While we would like to
+        # fail as fast and hard as we can, it seems generally reasonable that
+        # this sort of failure would be easy enough to track down later.
 
         # Actual entity names have preference over implicit aliases.
         if entity_spec in self.entities:
@@ -326,8 +331,9 @@ class Schema(object):
                 # We need to maintain $FROM$, and we want this to fail
                 # if it gets to Shotgun.
                 return [field_spec]
-        if not op.isalnum():
-            raise ValueError('unknown field operation for %s %r' % (entity_spec, field_spec))
+
+        # We used to raise an exception if not op.isalnum(); see resolve_entity
+        # for why we don't do that anymore.
 
         # Actual field names have preference over automatic prefixes or
         # implicit aliases.
