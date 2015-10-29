@@ -47,3 +47,11 @@ class TestResolveEntities(TestCase):
         self.assertEqual(self.s.resolve_one_entity('#TagOne'), 'Entity')
         self.assertRaises(ValueError, self.s.resolve_one_entity, '#TagNone')
         self.assertRaises(ValueError, self.s.resolve_one_entity, '#TagTwo')
+
+    def test_has_entity(self):
+        self.assertTrue(self.s.has_entity('Entity'))
+        self.assertTrue(self.s.has_entity('!Entity'))
+        self.assertTrue(self.s.has_entity('$Alias'))
+        self.assertTrue(self.s.has_entity('#TagOne'))
+        self.assertFalse(self.s.has_entity('NotAnEntity'))
+        self.assertFalse(self.s.has_entity('#TagNone'))

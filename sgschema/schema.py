@@ -414,6 +414,28 @@ class Schema(object):
         else:
             raise ValueError('%r returned %s %s fields' % (field_spec, len(res), entity_type))
 
+    def has_entity(self, entity_spec, **kwargs):
+        kwargs['strict'] = True
+        try:
+            entities = self.resolve_entity(entity_spec, **kwargs)
+            return bool(entities)
+        except ValueError as e:
+            if 'is not an entity' in e.args[0]:
+                return False
+            else:
+                raise
+        
+    def has_field(self, entity_type, field_spec, **kwargs):
+        kwargs['strict'] = True
+        try:
+            fields = self.resolve_field(entity_type, field_spec, **kwargs)
+            return bool(fields)
+        except ValueError as e:
+            if 'is not a field' in e.args[0]:
+                return False
+            else:
+                raise
+
     def resolve_structure(self, x, entity_type=None, **kwargs):
         """Traverse a nested structure resolving names in entities.
 

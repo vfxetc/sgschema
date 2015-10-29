@@ -76,3 +76,13 @@ class TestResolveFields(TestCase):
             'sg_type', 'sg_version', 'attr', 'multi_a', 'multi_b',
         ])
 
+    def test_has_field(self):
+        self.assertTrue(self.s.has_field('Entity', 'sg_type'))
+        self.assertTrue(self.s.has_field('Entity', 'version'))
+        self.assertTrue(self.s.has_field('Entity', '$alias'))
+        self.assertTrue(self.s.has_field('Entity', '#tagone'))
+        self.assertTrue(self.s.has_field('Entity', '#tagtwo'))
+        self.assertFalse(self.s.has_field('Entity', '#tagnone'))
+        self.assertFalse(self.s.has_field('Entity', 'notafield'))
+        self.assertRaises(ValueError, self.s.has_field, 'NotAnEntity', 'whatever')
+
