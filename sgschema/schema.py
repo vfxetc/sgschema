@@ -436,7 +436,7 @@ class Schema(object):
             else:
                 raise
 
-    def resolve_structure(self, x, entity_type=None, **kwargs):
+    def resolve_structure(self, x, entity_type=None, _seen=None, **kwargs):
         """Traverse a nested structure resolving names in entities.
 
         Recurses into ``list``, ``tuple`` and ``dict``, looking for ``dicts``
@@ -449,8 +449,16 @@ class Schema(object):
 
         """
 
+        # Protect from infinite recursion.
+        if _seen is None:
+            _seen = set()
+        id_ = id(x)
+        if id_ in _seen:
+            return
+        _seen.add(id_)
+
         if isinstance(x, (list, tuple)):
-            return type(x)(self.resolve_structure(x, **kwargs) for x in x)
+            return type(x)(self.resolve_structure(x, None, _seen, **kwargs) for x in x)
 
         elif isinstance(x, dict):
             entity_type = entity_type or x.get('type')
@@ -463,7 +471,7 @@ class Schema(object):
                 return new_values
             else:
                 return {
-                    k: self.resolve_structure(v, **kwargs)
+                    k: self.resolve_structure(v, None, _seen, **kwargs)
                     for k, v in x.iteritems()
                 }
 
