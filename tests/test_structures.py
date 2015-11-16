@@ -60,3 +60,31 @@ class TestResolveStructures(TestCase):
             }
         ])
 
+    def test_recursion(self):
+
+        entity = {
+            'type': 'Entity',
+            'version': 1
+        }
+        entity['self'] = entity
+
+        out = self.s.resolve_structure([entity, entity])
+
+        # Both items are the same entity.
+        self.assertEqual(len(out), 2)
+        entity = out[0]
+        self.assertIs(entity, out[1])
+
+        # It contains itself.
+        self.assertIs(entity, entity['self'])
+        
+        entity.pop('self') # just remove it for comparison
+
+        # Simple values.
+        self.assertEqual(entity, {
+            'type': 'Entity',
+            'sg_version': 1,
+        })
+
+
+
