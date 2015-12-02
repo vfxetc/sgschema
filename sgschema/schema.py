@@ -133,6 +133,12 @@ class Schema(object):
             ('entity_tags', self.entity_tags),
         ) if v)
 
+    def _dump_raw(self, base_path):
+        """Private API for testing and development; no other real purpose."""
+        for name in 'fields', 'entities', 'private':
+            with open(base_path + name + '.json', 'w') as fh:
+                fh.write(json.dumps(getattr(self, 'raw_' + name), indent=4, sort_keys=True))
+
     def dump(self, path):
         """Save the schema as JSON to the given path.
 
