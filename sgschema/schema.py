@@ -312,6 +312,12 @@ class Schema(object):
         else:
             raise ValueError('%r returned %s entity types' % (entity_spec, len(res)))
 
+    def repr_entity(self, entity_type):
+        for alias, type_ in sorted(self.entity_aliases.iteritems()):
+            if type_ == entity_type:
+                return '$' + alias
+        return entity_type
+
     def _resolve_field(self, entity_spec, field_spec, auto_prefix=True, implicit_aliases=True, strict=False):
 
         try:
