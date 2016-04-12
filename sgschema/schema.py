@@ -193,7 +193,7 @@ class Schema(object):
                 return
             else:
                 if data:
-                    schema.load(data)
+                    self.load(data)
 
     def load(self, input_, recurse=True):
         """Load a JSON file or ``dict`` containing schema structures.
