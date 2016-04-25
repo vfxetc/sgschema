@@ -25,12 +25,24 @@ class TestResolveStructures(TestCase):
                     }
                 }
             },
+            'entity_aliases': {
+                'Alias': 'Entity',
+            }
         })
 
-    def test_single_entity(self):
+    def test_single_entity_field(self):
         self.assertEqual(self.s.resolve_structure({
             'type': 'Entity',
             'version': 1
+        }), {
+            'type': 'Entity',
+            'sg_version': 1,
+        })
+
+    def test_single_entity_type(self):
+        self.assertEqual(self.s.resolve_structure({
+            'type': 'Alias',
+            'sg_version': 1
         }), {
             'type': 'Entity',
             'sg_version': 1,
@@ -43,7 +55,7 @@ class TestResolveStructures(TestCase):
                 'version': 1
             },
             {
-                'type': 'Entity',
+                'type': 'Alias',
                 '$alias': 'attr_value',
                 '#tagtwo': 'xxx',
             }
@@ -77,7 +89,7 @@ class TestResolveStructures(TestCase):
 
         # It contains itself.
         self.assertIs(entity, entity['self'])
-        
+
         entity.pop('self') # just remove it for comparison
 
         # Simple values.
@@ -85,6 +97,3 @@ class TestResolveStructures(TestCase):
             'type': 'Entity',
             'sg_version': 1,
         })
-
-
-

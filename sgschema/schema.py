@@ -103,7 +103,7 @@ class Schema(object):
 
         session = Session()
         session.cookies['_session_id'] = sg.get_session_token()
-        
+
         js = session.get(sg.base_url + '/page/schema').text
         encoded = js.splitlines()[0]
         m = re.match(r'^SG\.schema = new SG\.Schema\((.+)\);\s*$', encoded)
@@ -115,7 +115,7 @@ class Schema(object):
         self._reduce_raw()
 
     def _reduce_raw(self):
-        
+
         for type_name, raw_entity in self.raw_entities.iteritems():
             entity = self._get_or_make_entity(type_name)
             entity._reduce_raw(self, raw_entity)
@@ -208,7 +208,7 @@ class Schema(object):
 
         """
 
-        if isinstance(input_, basestring):  
+        if isinstance(input_, basestring):
             encoded = open(input_).read()
             if input_.endswith('.json'):
                 data = json.loads(encoded)
@@ -436,7 +436,7 @@ class Schema(object):
                 return False
             else:
                 raise
-        
+
     def has_field(self, entity_type, field_spec, **kwargs):
         kwargs['strict'] = True
         try:
@@ -489,12 +489,15 @@ class Schema(object):
         elif isinstance(x, dict):
             _memo[id(x)] = new = {} # For recursion.
             entity_type = entity_type or x.get('type')
-            if entity_type and entity_type in self.entities:
-                # Entities resolve their keys.
-                for field_spec, value in x.iteritems():
-                    value = self.resolve_structure(value, None, _memo)
-                    for field in self.resolve_field(entity_type, field_spec, **kwargs):
-                        new[field] = value
+            if entity_type:
+                entity_type = self.resolve_one_entity(entity_type)
+                if entity_type in self.entities:
+                    # Entities resolve their keys.
+                    for field_spec, value in x.iteritems():
+                        value = self.resolve_structure(value, None, _memo)
+                        for field in self.resolve_field(entity_type, field_spec, **kwargs):
+                            new[field] = value
+                    new['type'] = entity_type
             else:
                 for k, v in x.iteritems():
                     new[k] = self.resolve_structure(v, None, _memo, **kwargs)
@@ -536,4 +539,3 @@ if __name__ == '__main__':
     schema = Schema()
     schema.load('/tmp/reduced.json')
     print 1000 * (time.time() - t)
-
