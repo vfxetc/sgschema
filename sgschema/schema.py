@@ -497,7 +497,10 @@ class Schema(object):
                         value = self.resolve_structure(value, None, _memo)
                         for field in self.resolve_field(entity_type, field_spec, **kwargs):
                             new[field] = value
-                    new['type'] = entity_type
+                    # Only provide the new type if it was in the data. This allows
+                    # for transforms of non-entity dicts as if they were entities.
+                    if 'type' in new:
+                        new['type'] = entity_type
             else:
                 for k, v in x.iteritems():
                     new[k] = self.resolve_structure(v, None, _memo, **kwargs)
