@@ -55,7 +55,8 @@ class TestResolveFields(TestCase):
         self.assertEqual(self.s.resolve_field('Entity', '!name'), ['name'])
 
     def test_missing_entity(self):
-        self.assertRaises(ValueError, self.s.resolve_field, 'Missing', 'field_name')
+        self.assertEqual(self.s.resolve_field('Missing', 'field_name'), ['field_name'])
+        self.assertRaises(ValueError, self.s.resolve_field, 'Missing', 'field_name', strict=True)
 
     def test_missing(self):
         self.assertEqual(self.s.resolve_field('Entity', '$missing'), ['$missing'])

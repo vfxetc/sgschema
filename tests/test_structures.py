@@ -97,3 +97,12 @@ class TestResolveStructures(TestCase):
             'type': 'Entity',
             'sg_version': 1,
         })
+
+    def test_unknown_entity(self):
+        self.assertEqual(self.s.resolve_structure({
+            'type': 'NotAnEntity',
+            'version': 1
+        }), {
+            'type': 'NotAnEntity',
+            'version': 1,
+        })
