@@ -493,7 +493,7 @@ class Schema(object):
 
             # Only treat it like an entity if we know about that type.
             entity_type = entity_type or x.get('type')
-            entity_type = self.resolve_one_entity(entity_type)
+            entity_type = self.resolve_one_entity(entity_type) if entity_type else None
             if entity_type in self.entities:
 
                 # Resolve all data.
